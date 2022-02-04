@@ -17,9 +17,10 @@ namespace RedBall
         public Graphics g;
         public GameManager gm;
         public PointF pos;
-        public Size size;
+        public SizeF size;
+        
 
-        protected void init(GameManager gm, Graphics g,Point p, Size size)
+        protected void init(GameManager gm, Graphics g,PointF p, SizeF size)
         {
             this.g = g;
             this.gm = gm;
@@ -28,40 +29,69 @@ namespace RedBall
             forse = new Vector(0, 0);
             gm.objs.Add(this); 
         }
-        public void Gravity() => forse += new Vector(0, 0.09f);
+        public PointF GetRenderPos() => new PointF(pos.X / gm.scale + 500 - gm.posCamera.X, pos.Y / gm.scale + 500 - gm.posCamera.Y);
+        public SizeF GetRenderSize() => new SizeF(size.Width / gm.scale, size.Height / gm.scale );
+        public void Gravity() => forse.y = Math.Min(forse.y + Data.gravityValue, Data.YSpeedMax);
         public void AddForse(float X, float Y) => forse += new Vector(X, Y);
         public void AddForse(Vector v) => forse += v;
-        public abstract void Render();
+        //public bool isfly() => !(pos.Y + size.Height / 2 >= gm.objs[1].pos.Y);
+        public abstract void Render();        
         public abstract void Step();
+       
     }
     class RBall : GameObject
     {
-        public RBall(GameManager gm, Graphics g,Point p,Size size)
+        public RBall(GameManager gm, Graphics g,PointF p,SizeF size)
         {
             init(gm, g,p,size);
-            elasticity = 0.4;
+            elasticity = 0.4F;
+            gm.ball = this;
         }
         public override void Render()
         {
-            g.DrawEllipse(new Pen(Color.Red), pos.X - size.Width / 2, pos.Y - size.Height / 2, size.Width,size.Height);
-        } 
+            g.DrawEllipse(new Pen(Color.Red), GetRenderPos().X - GetRenderSize().Width / 2, GetRenderPos().Y - GetRenderSize().Height / 2, GetRenderSize().Width, GetRenderSize().Height);
+        }        
         public override void Step()
         {
+            forse.y = (int)forse.y;
+            forse.x = Math.Min(forse.x, Data.XSpeedMax);
+            forse.x = Math.Max(forse.x, -Data.XSpeedMax);
             pos += forse;
+           //if (isfly())
             Gravity();
-            if (pos.Y + size.Height/2 >= 1000)
-            {
-                pos.Y = 1000 - size.Height / 2;
-                forse = -forse*elasticity;
-            }
+            foreach (var v in gm.platforms)
+                if (pos.Y + size.Height / 2 >= v.pos.Y && pos.Y + size.Height / 2 <= v.pos.Y + Data.YSpeedMax && forse.y >= 0 && pos.X >= v.pos.X && pos.X <= (v.pos + v.size).X)
+                {
+                    pos.Y = v.pos.Y - size.Height / 2;
+                    forse.y = -forse.y * elasticity;
+                    forse.x = forse.x / 2;
+                }
+            gm.posCamera = new PointF(pos.X / gm.scale + 150, pos.Y / gm.scale);
         }
+        
 
+    }
+    class Platform : GameObject
+    {       
+        public Platform(GameManager gm, Graphics g, PointF p,SizeF size) 
+        {
+            init(gm, g, p, size);  
+            gm.platforms.Add(this);
+        }
+        public override void Render()
+        {
+            g.DrawLine(new Pen(Color.Brown), GetRenderPos(),GetRenderPos() + GetRenderSize());
+        }
+        public override void Step() { }        
     }
     class GameManager
     {
         public List<GameObject> objs = new List<GameObject>();
+        public List<Platform> platforms = new List<Platform>();
         public List<Keys> keys = new List<Keys>();
-
+        public RBall ball;
+        public PointF posCamera = new PointF(0,0);
+        public int scale = 6;
     }
     class Vector
     {
@@ -79,5 +109,11 @@ namespace RedBall
         public static Vector operator *(Vector v, float f) => new Vector(v.x * f, v.y * f);
         public static Vector operator /(Vector v, float f) => new Vector(v.x / f, v.y / f);
         public static Vector operator -(Vector V) => new Vector(-V.x,-V.y);
+        public PointF ToPointF() => new PointF(x, y);
+        public override string ToString()
+        {
+            return $"({x};{y})";
+        }
     }
+   
 }
